@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { formatUnits } from "ethers";
 import {
   DEFAULT_RPC_URL,
+  UPSTREAM_RPC_URL,
   DEFAULT_DECIMALS,
   parseAddresses,
   fetchBalances,
@@ -176,6 +177,9 @@ export default function Home() {
               value={rpcUrl}
               onChange={(e) => setRpcUrl(e.target.value)}
             />
+            <div className="hint">
+              默认 <code>/api/rpc</code> 同源代理（绕过 CORS）；也可改为任意直连 RPC。
+            </div>
           </div>
           <div className="field" style={{ maxWidth: 120 }}>
             <label htmlFor="decimals">小数位</label>
@@ -296,7 +300,7 @@ export default function Home() {
       )}
 
       <footer>
-        Godwoken v0 · {DEFAULT_RPC_URL} · 仅查询原生 CKB 余额
+        Godwoken v0 · {DEFAULT_RPC_URL} 代理 → {UPSTREAM_RPC_URL} · 仅查询原生 CKB 余额
       </footer>
     </main>
   );

@@ -1,7 +1,14 @@
 import { getAddress, formatUnits } from "ethers";
 
-/** Godwoken v0 mainnet 的 eth 兼容 RPC（浏览器直连）。 */
-export const DEFAULT_RPC_URL = "https://mainnet.godwoken.io/rpc";
+/**
+ * 默认走同源代理 /api/rpc（Next.js 路由转发到 Godwoken RPC），
+ * 这样浏览器是同源请求，绕过 RPC 端可能缺失的 CORS。
+ * 也可在界面改成任意直连 RPC 地址。
+ */
+export const DEFAULT_RPC_URL = "/api/rpc";
+
+/** 代理实际转发到的上游 Godwoken v0 RPC（仅用于界面展示）。 */
+export const UPSTREAM_RPC_URL = "https://mainnet.godwoken.io/rpc";
 
 /**
  * Godwoken Web3 层原生余额（eth_getBalance 返回值）的小数位。
