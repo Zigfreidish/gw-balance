@@ -1,4 +1,8 @@
 import { getAddress, formatUnits } from "ethers";
+import { V0_TOKENS, type TokenDef } from "./tokensV0";
+
+export { V0_TOKENS };
+export type { TokenDef };
 
 /**
  * 默认走同源代理 /api/rpc（Next.js 路由转发到 Godwoken RPC），
@@ -11,9 +15,9 @@ export const DEFAULT_RPC_URL = "/api/rpc";
 export const UPSTREAM_RPC_URL = "https://mainnet.godwoken.io/rpc";
 
 /**
- * Godwoken v0 原生 CKB 余额（eth_getBalance 返回值）的小数位。
- * v0 使用 CKB 原生的 8 位精度。
- * 注意：Godwoken v1 的 pCKB 用 18 位，二者不同——切换网络时需相应调整。
+ * Godwoken v0 原生 CKB 余额（eth_getBalance 返回值）的小数位 = 8。
+ * 注意：Godwoken v1 的 pCKB 用 18 位，二者不同。
+ * （ERC20 代币各自有自己的 decimals，见 tokensV0.ts，不受此设置影响。）
  */
 export const DEFAULT_DECIMALS = 8;
 
@@ -21,16 +25,11 @@ export const DEFAULT_DECIMALS = 8;
 const ADDRESS_RE = /0x[0-9a-fA-F]{40}/g;
 
 export interface ParseResult {
-  /** 去重后的、带 checksum 的有效地址。 */
   addresses: string[];
-  /** 被移除的重复地址数量。 */
   duplicates: number;
 }
 
-/**
- * 从任意文本中提取有效地址：既支持逗号/换行/空格分隔的粘贴，
- * 也支持直接读入的 CSV 全文（无论地址在第几列）。
- */
+/** 从任意文本（粘贴或 CSV 全文）中提取去重后的有效地址。 */
 export function parseAddresses(input: string): ParseResult {
   const matches = input.match(ADDRESS_RE) ?? [];
   const seen = new Set<string>();
@@ -42,7 +41,6 @@ export function parseAddresses(input: string): ParseResult {
     try {
       checksummed = getAddress(raw);
     } catch {
-      // 混合大小写但 checksum 不匹配时，按小写规范化（始终是合法地址）。
       checksummed = getAddress(raw.toLowerCase());
     }
     const key = checksummed.toLowerCase();
@@ -57,141 +55,208 @@ export function parseAddresses(input: string): ParseResult {
   return { addresses, duplicates };
 }
 
-export interface BalanceRow {
-  index: number;
+export interface TokenHolding {
+  symbol: string;
   address: string;
-  /** eth_getBalance 原始十六进制返回值。 */
-  rawHex: string;
-  /** 原始整数（十进制字符串），即未做小数换算的最小单位余额。 */
-  raw: string;
-  /** 按 decimals 换算后的人类可读余额。 */
-  formatted: string;
-  status: "ok" | "error";
-  error?: string;
+  decimals: number;
+  raw: string; // 原始整数（最小单位）
+  formatted: string; // 按 token.decimals 换算
 }
 
-export interface FetchOptions {
+export interface AssetRow {
+  index: number;
+  address: string;
+  /** 原生 CKB 原始整数值。 */
+  ckbRaw: string;
+  /** 原生 CKB 按 ckbDecimals 换算。 */
+  ckb: string;
+  status: "ok" | "error"; // 指原生 CKB 查询是否成功
+  error?: string;
+  /** 余额非零的代币（按 symbol 排序）；未开启代币查询时为空。 */
+  tokens: TokenHolding[];
+  /** 查询失败的代币数量。 */
+  tokenErrors: number;
+}
+
+export interface FetchAssetsOptions {
   rpcUrl: string;
-  decimals: number;
-  /** 并发请求数，默认 8。 */
+  /** 原生 CKB 的小数位（v0 = 8）。 */
+  ckbDecimals: number;
+  /** 提供且非空时，额外对每个地址逐代币查询 balanceOf。 */
+  tokens?: TokenDef[];
   concurrency?: number;
   signal?: AbortSignal;
   onProgress?: (done: number, total: number) => void;
 }
 
-/** 对单个地址发起 eth_getBalance 的原始 JSON-RPC 调用。 */
-async function rpcGetBalance(
+/** 单次 JSON-RPC 调用，返回 result 字符串（hex）。 */
+async function rpcCall(
   rpcUrl: string,
-  address: string,
+  method: string,
+  params: unknown[],
   signal?: AbortSignal,
 ): Promise<string> {
   const res = await fetch(rpcUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 1,
-      method: "eth_getBalance",
-      params: [address, "latest"],
-    }),
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     signal,
   });
-  if (!res.ok) {
-    throw new Error(`HTTP ${res.status} ${res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
   const json = await res.json();
-  if (json.error) {
-    throw new Error(json.error.message ?? "RPC error");
-  }
-  if (typeof json.result !== "string") {
-    throw new Error("RPC 返回格式异常");
-  }
+  if (json.error) throw new Error(json.error.message ?? "RPC error");
+  if (typeof json.result !== "string") throw new Error("RPC 返回格式异常");
   return json.result;
 }
 
+/** ERC20 balanceOf(address) 的 calldata。 */
+function balanceOfData(address: string): string {
+  return "0x70a08231" + address.slice(2).toLowerCase().padStart(64, "0");
+}
+
 /**
- * 用并发池逐地址查询余额。单个地址失败不影响其余地址，
- * 失败信息记录在对应行的 error 字段中。
+ * 查询每个地址的原生 CKB 余额，以及（可选）一组 ERC20 代币的 balanceOf。
+ * 所有调用共用一个并发池，进度按"任务数 = 地址数 ×(1 + 代币数)"统计。
+ * 原生查询失败标记该行 error；单个代币查询失败仅计入 tokenErrors，不影响其余。
  */
-export async function fetchBalances(
+export async function fetchAssets(
   addresses: string[],
-  opts: FetchOptions,
-): Promise<BalanceRow[]> {
-  const { rpcUrl, decimals, concurrency = 8, signal, onProgress } = opts;
-  const results = new Array<BalanceRow>(addresses.length);
+  opts: FetchAssetsOptions,
+): Promise<AssetRow[]> {
+  const { rpcUrl, ckbDecimals, tokens = [], concurrency = 8, signal, onProgress } = opts;
+
+  const rows: AssetRow[] = addresses.map((address, i) => ({
+    index: i + 1,
+    address,
+    ckbRaw: "",
+    ckb: "",
+    status: "ok",
+    tokens: [],
+    tokenErrors: 0,
+  }));
+
+  // 任务：每个地址一个原生查询 + 每个代币一个 balanceOf。
+  type Task = { i: number; token?: TokenDef };
+  const tasks: Task[] = [];
+  for (let i = 0; i < addresses.length; i++) {
+    tasks.push({ i });
+    for (const t of tokens) tasks.push({ i, token: t });
+  }
+
   let done = 0;
   let next = 0;
 
   async function worker(): Promise<void> {
     for (;;) {
-      const i = next++;
-      if (i >= addresses.length) return;
+      const k = next++;
+      if (k >= tasks.length) return;
+      const { i, token } = tasks[k];
       const address = addresses[i];
       try {
-        const hex = await rpcGetBalance(rpcUrl, address, signal);
-        const value = BigInt(hex);
-        results[i] = {
-          index: i + 1,
-          address,
-          rawHex: hex,
-          raw: value.toString(),
-          formatted: formatUnits(value, decimals),
-          status: "ok",
-        };
+        if (!token) {
+          const hex = await rpcCall(rpcUrl, "eth_getBalance", [address, "latest"], signal);
+          const v = BigInt(hex);
+          rows[i].ckbRaw = v.toString();
+          rows[i].ckb = formatUnits(v, ckbDecimals);
+        } else {
+          const hex = await rpcCall(
+            rpcUrl,
+            "eth_call",
+            [{ to: token.address, data: balanceOfData(address) }, "latest"],
+            signal,
+          );
+          const v = hex && hex !== "0x" ? BigInt(hex) : 0n;
+          if (v > 0n) {
+            rows[i].tokens.push({
+              symbol: token.symbol,
+              address: token.address,
+              decimals: token.decimals,
+              raw: v.toString(),
+              formatted: formatUnits(v, token.decimals),
+            });
+          }
+        }
       } catch (e) {
         if (signal?.aborted || (e as Error)?.name === "AbortError") throw e;
-        results[i] = {
-          index: i + 1,
-          address,
-          rawHex: "",
-          raw: "",
-          formatted: "",
-          status: "error",
-          error: (e as Error)?.message ?? String(e),
-        };
+        if (!token) {
+          rows[i].status = "error";
+          rows[i].error = (e as Error)?.message ?? String(e);
+        } else {
+          rows[i].tokenErrors++;
+        }
       } finally {
         done++;
-        onProgress?.(done, addresses.length);
+        onProgress?.(done, tasks.length);
       }
     }
   }
 
   const pool = Array.from(
-    { length: Math.min(Math.max(1, concurrency), addresses.length) },
+    { length: Math.min(Math.max(1, concurrency), Math.max(1, tasks.length)) },
     () => worker(),
   );
   await Promise.all(pool);
-  return results;
+
+  for (const r of rows) r.tokens.sort((a, b) => a.symbol.localeCompare(b.symbol));
+  return rows;
 }
 
 function csvCell(value: string): string {
-  return /[",\r\n]/.test(value)
-    ? `"${value.replace(/"/g, '""')}"`
-    : value;
+  return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-/** 将结果导出为 CSV 文本（含原始整数值，便于核对小数位）。 */
-export function toCsv(rows: BalanceRow[], decimals: number): string {
+/**
+ * 导出 CSV。
+ * - 不带 tokens：index,address,CKB,ckb_raw,status,error
+ * - 带 tokens：index,address,status,CKB,<每个代币 symbol 一列>（无持仓为 0）
+ */
+export function toCsv(
+  rows: AssetRow[],
+  ckbDecimals: number,
+  tokens?: TokenDef[],
+): string {
+  if (!tokens || tokens.length === 0) {
+    const header = [
+      "index",
+      "address",
+      `CKB(decimals=${ckbDecimals})`,
+      "ckb_raw",
+      "status",
+      "error",
+    ];
+    const lines = [header.join(",")];
+    for (const r of rows) {
+      lines.push(
+        [
+          String(r.index),
+          r.address,
+          csvCell(r.ckb),
+          r.ckbRaw,
+          r.status,
+          csvCell(r.error ?? ""),
+        ].join(","),
+      );
+    }
+    return lines.join("\r\n");
+  }
+
   const header = [
     "index",
     "address",
-    `ckb_balance(decimals=${decimals})`,
-    "raw_balance",
-    "raw_hex",
     "status",
-    "error",
+    `CKB(decimals=${ckbDecimals})`,
+    ...tokens.map((t) => t.symbol),
   ];
   const lines = [header.join(",")];
   for (const r of rows) {
+    const bySymbol = new Map(r.tokens.map((t) => [t.symbol, t.formatted]));
     lines.push(
       [
         String(r.index),
         r.address,
-        csvCell(r.formatted),
-        r.raw,
-        r.rawHex,
         r.status,
-        csvCell(r.error ?? ""),
+        csvCell(r.ckb),
+        ...tokens.map((t) => csvCell(bySymbol.get(t.symbol) ?? "0")),
       ].join(","),
     );
   }

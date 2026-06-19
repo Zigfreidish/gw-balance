@@ -1,0 +1,55 @@
+export interface TokenDef {
+  symbol: string;
+  address: string;
+  decimals: number;
+}
+
+// Godwoken v0 主网 sUDT → ERC20 代理代币清单。
+// 来源: github.com/godwokenrises/godwoken-info → mainnet_v0/ERC20TokenList.json
+export const V0_TOKENS: TokenDef[] = [
+  { symbol: "CKB", address: "0x9D9599c41383D7009C2093319d576AA6F89A4449", decimals: 8 },
+  { symbol: "dCKB", address: "0x53A1964a163f64Da59eFE6A802e35b5529d078E2", decimals: 8 },
+  { symbol: "TAI", address: "0xf4187511D43B90751a28b6811d13AFB49BeF8452", decimals: 8 },
+  { symbol: "ETH", address: "0x48aA6F7bEe4C0d3e7d918833894ee83357ae0d4C", decimals: 18 },
+  { symbol: "USDT", address: "0x07a388453944bB54BE709AE505F14aEb5d5cbB2C", decimals: 6 },
+  { symbol: "DAI", address: "0x128BEc17A6D527cdA1Fab65958F0D7bda17e4Aef", decimals: 18 },
+  { symbol: "LINK", address: "0xdDb9265c0bfdd3076336F314f7636B03AC6333c7", decimals: 18 },
+  { symbol: "BAND", address: "0x8Ea9E9b797e9497ab044EeE9Aa286A780fEC1911", decimals: 18 },
+  { symbol: "BAT", address: "0xDA65D41BA72bDeDB7f7180025797cC9f531dF3CC", decimals: 18 },
+  { symbol: "SNX", address: "0x97d4d6dD8fFA0E4F7D0b883E7f9B4E71a9AbEb58", decimals: 18 },
+  { symbol: "UNI", address: "0x9673Ad4D1a57aaE106e49659Cd35d81A6A4ca70C", decimals: 18 },
+  { symbol: "YFI", address: "0xe7c12fB824BBdDD99ffb810bBEF9Fc87bfC84959", decimals: 18 },
+  { symbol: "BUSD", address: "0xdAFc31040624D70B2381E59C1AD0AD28112CE79A", decimals: 18 },
+  { symbol: "COMP", address: "0xE0f817Ef8DeD91BfBafc50AB3ec34C30b2c62A6a", decimals: 18 },
+  { symbol: "MKR", address: "0xF128da0AE9242a4aAebfeE892aCEdE31Cf286D55", decimals: 18 },
+  { symbol: "IOTX", address: "0xBa4C164CE191522B1eF3FD851e436d8b8d5F178B", decimals: 18 },
+  { symbol: "BEL", address: "0x1f8d3551984A2C89030FFcc15BCe2C24878b0c6b", decimals: 18 },
+  { symbol: "PAX", address: "0x653239a754B167E8967fE8A3d1444e0Aa6Cd004e", decimals: 18 },
+  { symbol: "USDC", address: "0xC3b946c53E2e62200515d284249f2a91d9DF7954", decimals: 6 },
+  { symbol: "SXP", address: "0x7ab542aB5A31b29D9cB34eC2aa64356C3A36023F", decimals: 18 },
+  { symbol: "SUSHI", address: "0x8cbBE0A31D4330B96641Ff3D66a4d5Baae3E3348", decimals: 18 },
+  { symbol: "AAVE", address: "0xc04e95A95DA3507B70D6d150321AeFBf44048462", decimals: 18 },
+  { symbol: "1INCH", address: "0x5e6242f8730dcFF116D1324043FbeE8106AcC3B9", decimals: 18 },
+  { symbol: "LTO", address: "0x572136Bfd2c85877CF53EE65D8F2b367bF52DC5E", decimals: 8 },
+  { symbol: "MATIC", address: "0x6DC6fCCB161c2eA8fD9C7647AE7b636e7a6EBCDF", decimals: 18 },
+  { symbol: "BNT", address: "0x3C5b9fAFe6C369aF00007e6324a356109216DeFC", decimals: 18 },
+  { symbol: "BZRX", address: "0xc52f7775FDF32b8a97b1160A4BD2688714f589B0", decimals: 18 },
+  { symbol: "MDT", address: "0x71d5931a8dFab62d00d58E42230aAECa970711e0", decimals: 18 },
+  { symbol: "PNT", address: "0xD0C94845f8FFEDCCFbdB5446eEf2F4B6a366e00B", decimals: 18 },
+  { symbol: "PERL", address: "0xC5c6676EFc356629Dd0736a79Ba98c0A96d854c6", decimals: 18 },
+  { symbol: "BAL", address: "0x195DC187402959717DAc878e95D93130a62d16fE", decimals: 18 },
+  { symbol: "BLZ", address: "0xf0948768ab0E64c649cBdf910eE7F10b4B11bd12", decimals: 18 },
+  { symbol: "COTI", address: "0x2F354Ad6b31E3E3F631B3CbBe61a262F5139C7fd", decimals: 18 },
+  { symbol: "TRX", address: "0xAA0e6C6Dea0119CDD78666b1e8192bb4583DfF40", decimals: 6 },
+  { symbol: "TUSD", address: "0x9417475FC822a1e4677E2689d73579448B341418", decimals: 18 },
+  { symbol: "BNB|bsc", address: "0xF818146b3abaA7830B94A47C2703eEDE5971D055", decimals: 18 },
+  { symbol: "BUSD|bsc", address: "0xC61BC16E5199E4988d517a08Fa3133194EEdd9fB", decimals: 18 },
+  { symbol: "USDT|bsc", address: "0x5C30d9396a97f2279737E63B2bf64CC823046591", decimals: 18 },
+  { symbol: "ETH|bsc", address: "0x6c9A86CF7b9065CefBf9110D8585514c4D304dc3", decimals: 18 },
+  { symbol: "BTCB|bsc", address: "0x3f8d2b24C6fa7b190f368C3701FfCb2bd919Af37", decimals: 18 },
+  { symbol: "WBNB|bsc", address: "0x0F0C07a45F3c33898bD307541E01f34C6d054ed6", decimals: 18 },
+  { symbol: "USDC|bsc", address: "0xA21B19d660917C1DE263Ad040Ba552737cfcEf50", decimals: 18 },
+  { symbol: "SFP|bsc", address: "0x7554dc828c3f28093940BcBE33F438788043408b", decimals: 18 },
+  { symbol: "iBFR|bsc", address: "0xB5b12d26592cdEa10e056a8557Cb85B01B93F337", decimals: 18 },
+  { symbol: "WBTC|eth", address: "0x7818FA4C71dC3b60049FB0b6066f18ff8c720f33", decimals: 8 },
+];

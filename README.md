@@ -3,7 +3,8 @@
 批量查询 [Godwoken](https://github.com/godwokenrises/godwoken) **v0** 主网上一组地址的**原生 CKB 余额**。
 
 - 粘贴逗号 / 空格 / 换行分隔的地址，或上传 CSV / TXT 文件
-- 逐地址查询，结果以表格展示，可导出 CSV
+- 逐地址查询原生 CKB 余额；可勾选**同时查询 45 种 ERC20 代币**（sUDT 代理，`balanceOf`）
+- 结果以表格展示（代币列出非零持仓），可导出 CSV（代币模式下每种代币一列）
 - 通过**同源代理 `/api/rpc`** 访问 Godwoken 的 eth 兼容 RPC，浏览器是同源请求，**绕过 CORS**
 
 默认上游 RPC：`https://mainnet.godwoken.io/rpc`（Godwoken v0 主网，eth 兼容），可用环境变量 `GODWOKEN_RPC_URL` 覆盖。
@@ -35,9 +36,12 @@ Next.js 服务端的环境（Vercel 原生支持）。
 
 ## 实现说明与注意事项
 
-- **只查原生 CKB 余额。** 调用 `eth_getBalance(address, "latest")`。Godwoken v0
-  的 RPC 没有“枚举某地址全部代币”的方法，因此本工具不查 ERC20 (sUDT) 代币。
-  若以后要加，需要提供固定的代币合约清单并逐个 `balanceOf`，或接入 GwScan 索引 API。
+- **资产范围。** 默认调用 `eth_getBalance(address, "latest")` 查原生 CKB。Godwoken v0
+  的 RPC 没有“枚举某地址全部代币”的方法，所以 ERC20 走固定清单：勾选“同时查询 ERC20”后，
+  对每个地址逐个 `eth_call` 调用 45 种 sUDT 代理代币的 `balanceOf`，列出非零持仓。
+  清单见 `lib/tokensV0.ts`，来源为
+  [godwoken-info / mainnet_v0/ERC20TokenList.json](https://github.com/godwokenrises/godwoken-info/blob/main/mainnet_v0/ERC20TokenList.json)。
+  每种代币的 decimals 各异（如 USDT/USDC=6、dCKB/WBTC=8、多数=18），均取自该清单。
 
 - **小数位。** 界面与 CSV 始终保留 `eth_getBalance` 的原始整数值（`raw_balance` /
   `raw_hex`）。换算成 CKB 时使用的小数位默认 **8**（Godwoken v0 的原生 CKB 精度；

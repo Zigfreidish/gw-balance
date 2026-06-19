@@ -6,10 +6,11 @@ import {
   DEFAULT_RPC_URL,
   UPSTREAM_RPC_URL,
   DEFAULT_DECIMALS,
+  V0_TOKENS,
   parseAddresses,
-  fetchBalances,
+  fetchAssets,
   toCsv,
-  type BalanceRow,
+  type AssetRow,
 } from "@/lib/godwoken";
 
 export default function Home() {
@@ -17,7 +18,9 @@ export default function Home() {
   const [rpcUrl, setRpcUrl] = useState(DEFAULT_RPC_URL);
   const [decimals, setDecimals] = useState(DEFAULT_DECIMALS);
   const [concurrency, setConcurrency] = useState(8);
-  const [rows, setRows] = useState<BalanceRow[]>([]);
+  const [withTokens, setWithTokens] = useState(false);
+  const [rows, setRows] = useState<AssetRow[]>([]);
+  const [queriedWithTokens, setQueriedWithTokens] = useState(false);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -31,12 +34,13 @@ export default function Home() {
     let total = 0n;
     for (const r of ok) {
       try {
-        total += BigInt(r.raw);
+        total += BigInt(r.ckbRaw || "0");
       } catch {
         /* ignore */
       }
     }
-    return { ok: ok.length, failed: rows.length - ok.length, totalRaw: total };
+    const tokenErrors = rows.reduce((s, r) => s + r.tokenErrors, 0);
+    return { ok: ok.length, failed: rows.length - ok.length, totalRaw: total, tokenErrors };
   }, [rows]);
 
   async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -60,13 +64,17 @@ export default function Home() {
     }
     setLoading(true);
     setRows([]);
-    setProgress({ done: 0, total: parsed.addresses.length });
+    const useTokens = withTokens;
+    setQueriedWithTokens(useTokens);
+    const perAddr = 1 + (useTokens ? V0_TOKENS.length : 0);
+    setProgress({ done: 0, total: parsed.addresses.length * perAddr });
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      const result = await fetchBalances(parsed.addresses, {
+      const result = await fetchAssets(parsed.addresses, {
         rpcUrl: rpcUrl.trim(),
-        decimals,
+        ckbDecimals: decimals,
+        tokens: useTokens ? V0_TOKENS : undefined,
         concurrency,
         signal: controller.signal,
         onProgress: (done, total) => setProgress({ done, total }),
@@ -89,43 +97,37 @@ export default function Home() {
   }
 
   function handleExport() {
-    const csv = toCsv(rows, decimals);
-    const blob = new Blob(["﻿" + csv], {
-      type: "text/csv;charset=utf-8;",
-    });
+    const csv = toCsv(rows, decimals, queriedWithTokens ? V0_TOKENS : undefined);
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    const stamp = new Date()
-      .toISOString()
-      .slice(0, 19)
-      .replace(/[:T]/g, "-");
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     a.href = url;
     a.download = `gw-v0-balances-${stamp}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   }
 
-  const pct =
-    progress.total > 0
-      ? Math.round((progress.done / progress.total) * 100)
-      : 0;
+  const pct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
   const totalFormatted = formatUnits(summary.totalRaw, decimals);
+  const cols = queriedWithTokens ? 6 : 5;
 
   return (
     <main>
       <h1>Godwoken v0 余额查询</h1>
       <p className="subtitle">
-        批量查询 Godwoken v0 地址上的原生 CKB 余额。纯前端，浏览器直连 RPC。
+        批量查询 Godwoken v0 地址上的原生 CKB 余额（可选 {V0_TOKENS.length} 种 ERC20 代币）。纯前端，浏览器经同源代理直连 RPC。
       </p>
 
       <div className="note">
         <strong>关于小数位：</strong>
-        界面与 CSV 始终保留 <code>eth_getBalance</code> 的原始整数值。换算用的小数位默认为{" "}
-        <strong>8</strong>（Godwoken v0 的原生 CKB 精度；注意 v1 的 pCKB 用 18 位）。可在{" "}
+        界面与 CSV 始终保留 <code>eth_getBalance</code> 的原始整数值。原生 CKB 换算默认{" "}
+        <strong>8</strong> 位（Godwoken v0；v1 的 pCKB 用 18 位）。ERC20 代币各自带自己的
+        decimals（来自官方 ERC20TokenList）。可在{" "}
         <a href="https://www.gwscan.com" target="_blank" rel="noreferrer">
           GwScan
         </a>{" "}
-        上用一个已知地址核对。
+        上核对。
       </div>
 
       <div className="card">
@@ -181,16 +183,14 @@ export default function Home() {
             </div>
           </div>
           <div className="field" style={{ maxWidth: 120 }}>
-            <label htmlFor="decimals">小数位</label>
+            <label htmlFor="decimals">CKB 小数位</label>
             <input
               id="decimals"
               type="number"
               min={0}
               max={36}
               value={decimals}
-              onChange={(e) =>
-                setDecimals(Math.max(0, Number(e.target.value) || 0))
-              }
+              onChange={(e) => setDecimals(Math.max(0, Number(e.target.value) || 0))}
             />
           </div>
           <div className="field" style={{ maxWidth: 120 }}>
@@ -202,12 +202,23 @@ export default function Home() {
               max={50}
               value={concurrency}
               onChange={(e) =>
-                setConcurrency(
-                  Math.min(50, Math.max(1, Number(e.target.value) || 1)),
-                )
+                setConcurrency(Math.min(50, Math.max(1, Number(e.target.value) || 1)))
               }
             />
           </div>
+        </div>
+
+        <div style={{ marginTop: 12 }}>
+          <label
+            style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 400, marginBottom: 0 }}
+          >
+            <input
+              type="checkbox"
+              checked={withTokens}
+              onChange={(e) => setWithTokens(e.target.checked)}
+            />
+            同时查询 ERC20 代币余额（{V0_TOKENS.length} 种 sUDT 代理 · 每地址额外 {V0_TOKENS.length} 次 balanceOf 调用）
+          </label>
         </div>
 
         <div className="toolbar">
@@ -217,7 +228,9 @@ export default function Home() {
             onClick={handleQuery}
             disabled={loading || parsed.addresses.length === 0}
           >
-            {loading ? "查询中…" : `查询余额（${parsed.addresses.length}）`}
+            {loading
+              ? "查询中…"
+              : `查询余额（${parsed.addresses.length} 地址${withTokens ? ` · +${V0_TOKENS.length} 代币` : ""}）`}
           </button>
           {loading && (
             <button className="btn-secondary" type="button" onClick={handleAbort}>
@@ -258,6 +271,9 @@ export default function Home() {
                 </span>
               </span>
             )}
+            {queriedWithTokens && summary.tokenErrors > 0 && (
+              <span className="muted">代币查询失败 {summary.tokenErrors} 次</span>
+            )}
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -268,6 +284,7 @@ export default function Home() {
                   <th className="mono">地址</th>
                   <th className="num">CKB 余额</th>
                   <th className="num">原始值</th>
+                  {queriedWithTokens && <th>代币持仓（非零）</th>}
                   <th style={{ width: 80 }}>状态</th>
                 </tr>
               </thead>
@@ -276,8 +293,29 @@ export default function Home() {
                   <tr key={r.address}>
                     <td className="muted">{r.index}</td>
                     <td className="mono">{r.address}</td>
-                    <td className="num">{r.status === "ok" ? r.formatted : "—"}</td>
-                    <td className="num muted">{r.status === "ok" ? r.raw : "—"}</td>
+                    <td className="num">{r.status === "ok" ? r.ckb : "—"}</td>
+                    <td className="num muted">{r.status === "ok" ? r.ckbRaw : "—"}</td>
+                    {queriedWithTokens && (
+                      <td>
+                        {r.tokens.length === 0 ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          <div className="holdings">
+                            {r.tokens.map((t) => (
+                              <span className="tok" key={t.symbol}>
+                                {t.symbol} <b>{t.formatted}</b>
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {r.tokenErrors > 0 && (
+                          <span className="muted" style={{ fontSize: 11 }}>
+                            {" "}
+                            ({r.tokenErrors} 失败)
+                          </span>
+                        )}
+                      </td>
+                    )}
                     <td>
                       {r.status === "ok" ? (
                         <span className="badge ok">OK</span>
@@ -298,6 +336,11 @@ export default function Home() {
                     <b>{totalFormatted}</b>
                   </td>
                   <td className="num muted">{summary.totalRaw.toString()}</td>
+                  {queriedWithTokens && (
+                    <td className="muted" style={{ fontSize: 12 }}>
+                      各代币合计见导出 CSV
+                    </td>
+                  )}
                   <td></td>
                 </tr>
               </tfoot>
@@ -307,7 +350,7 @@ export default function Home() {
       )}
 
       <footer>
-        Godwoken v0 · {DEFAULT_RPC_URL} 代理 → {UPSTREAM_RPC_URL} · 仅查询原生 CKB 余额
+        Godwoken v0 · {DEFAULT_RPC_URL} 代理 → {UPSTREAM_RPC_URL} · 原生 CKB + {V0_TOKENS.length} 种 ERC20
       </footer>
     </main>
   );
