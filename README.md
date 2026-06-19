@@ -40,8 +40,8 @@ Next.js 服务端的环境（Vercel 原生支持）。
   若以后要加，需要提供固定的代币合约清单并逐个 `balanceOf`，或接入 GwScan 索引 API。
 
 - **小数位。** 界面与 CSV 始终保留 `eth_getBalance` 的原始整数值（`raw_balance` /
-  `raw_hex`）。换算成 CKB 时使用的小数位默认 **18**（Godwoken Web3 常见约定）。
-  若换算结果明显偏大/偏小，请在界面改为 **8**，并用一个已知地址在
+  `raw_hex`）。换算成 CKB 时使用的小数位默认 **8**（Godwoken v0 的原生 CKB 精度；
+  注意 Godwoken v1 的 pCKB 用 18 位，二者不同）。可用一个已知地址在
   [GwScan](https://www.gwscan.com) 上核对——原始整数值不受小数位设置影响，可作为基准。
 
 - **地址格式。** 仅识别标准 20 字节以太坊地址（`0x` + 40 个十六进制字符），

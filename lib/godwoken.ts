@@ -11,11 +11,11 @@ export const DEFAULT_RPC_URL = "/api/rpc";
 export const UPSTREAM_RPC_URL = "https://mainnet.godwoken.io/rpc";
 
 /**
- * Godwoken Web3 层原生余额（eth_getBalance 返回值）的小数位。
- * Godwoken Web3 通常以 18 位（类似 ETH 的 wei）表示原生代币；
- * 若发现数值明显偏大，可在界面改为 8 并用 GwScan 对一个已知地址核对。
+ * Godwoken v0 原生 CKB 余额（eth_getBalance 返回值）的小数位。
+ * v0 使用 CKB 原生的 8 位精度。
+ * 注意：Godwoken v1 的 pCKB 用 18 位，二者不同——切换网络时需相应调整。
  */
-export const DEFAULT_DECIMALS = 18;
+export const DEFAULT_DECIMALS = 8;
 
 /** 匹配标准 20 字节以太坊地址（0x + 40 个十六进制字符）。 */
 const ADDRESS_RE = /0x[0-9a-fA-F]{40}/g;

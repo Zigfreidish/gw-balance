@@ -121,8 +121,7 @@ export default function Home() {
       <div className="note">
         <strong>关于小数位：</strong>
         界面与 CSV 始终保留 <code>eth_getBalance</code> 的原始整数值。换算用的小数位默认为{" "}
-        <strong>18</strong>（Godwoken Web3 常见约定）。若换算后的 CKB 数值明显偏大或偏小，
-        请改成 <strong>8</strong>，并在{" "}
+        <strong>8</strong>（Godwoken v0 的原生 CKB 精度；注意 v1 的 pCKB 用 18 位）。可在{" "}
         <a href="https://www.gwscan.com" target="_blank" rel="noreferrer">
           GwScan
         </a>{" "}
