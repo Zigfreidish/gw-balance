@@ -259,9 +259,6 @@ export default function Home() {
                 </span>
               </span>
             )}
-            <span>
-              合计 CKB <span className="num">{totalFormatted}</span>
-            </span>
           </div>
 
           <div style={{ overflowX: "auto" }}>
@@ -294,6 +291,17 @@ export default function Home() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr>
+                  <td></td>
+                  <td className="muted">合计（{summary.ok} 个成功地址）</td>
+                  <td className="num">
+                    <b>{totalFormatted}</b>
+                  </td>
+                  <td className="num muted">{summary.totalRaw.toString()}</td>
+                  <td></td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </div>
